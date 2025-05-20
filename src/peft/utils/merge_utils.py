@@ -217,7 +217,7 @@ def ties(
 
 #### Todo: Add new methods, reuse modules in other algorithms ####
 #### e.g. if you want to implement “sce” algorithm ####
-"""
+
 def sce(
     task_tensors: List[torch.Tensor],
     density: float = 1.0,
@@ -239,25 +239,35 @@ def sce(
     # C: sum of squares of elements to obtain merging coefficient for each target LLM
     # E: filter elements with minority directions
     
-    ## Stack all task tensors into a single tensor of shape [num_tasks, ...]
+    # Stack all task tensors into a single tensor of shape [num_tasks, ...]
+    stacked_tensors = torch.stack(task_tensors, dim=0)
+    
+    # Apply variance-based selection mask if density < 1.0
+    if density < 1.0:
+        mask = sce_mask(stacked_tensors, density)
+        stacked_tensors = stacked_tensors * mask
+    
+    # Compute majority sign agreement mask
+    majority_sign_mask = calculate_majority_sign_mask(stacked_tensors, method=majority_sign_method)
+    
+    # Compute task-specific weights
+    weights = sce_weight(stacked_tensors)
+    
+    # Reshape weights for broadcasting
+    weights = reshape_weight_task_tensors(stacked_tensors, weights)
+    
+    # Apply majority sign mask to weights (zero out weights that disagree with majority)
+    masked_weights = weights * majority_sign_mask
+    
+    # Weighted summation of masked task tensors
+    merged_tensor = torch.sum(stacked_tensors * masked_weights, dim=0)
+    
+    # Normalize by sum of weights (with clamping to avoid division by zero)
+    weight_sum = torch.sum(masked_weights, dim=0)
+    merged_tensor = merged_tensor / weight_sum.clamp(min=1e-6)
+    
+    return merged_tensor
 
-    ## If density < 1.0, apply a variance-based selection mask to sparsify the merge.
-        ## sce_mask() selects top-k elements (by variance) per dimension across tasks to keep.
-        ## Apply the binary mask across all task tensors.
-    
-    ## Compute a binary mask indicating majority sign agreement per element across task vectors. (reuse)
-    
-    ## Compute task-specific weights with sce_weight()
-    
-    ## Reshape weights to match dimensions of task_tensors for broadcasting.
-    
-    ## Apply the majority sign agreement mask to the task weights. Erase contributions from parameters that violate majority sign consensus.
-    
-    ## Weighted summation of masked task tensors to create a merged task tensor.
-
-    ## Normalize the merged tensor by the sum of weights at each parameter position. Use clamp(min=1e-6) to avoid division by zero when all weights are erased.
-
-    return
     
 def sce_weight(task_tensors: torch.Tensor) -> torch.Tensor:
 	# Implementation of C step
@@ -305,7 +315,7 @@ def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[to
     mask.view(-1)[indices] = 1
     return mask
 
-"""
+
 
 
 def dare_linear(task_tensors: List[torch.Tensor], weights: torch.Tensor, density: float) -> torch.Tensor:
