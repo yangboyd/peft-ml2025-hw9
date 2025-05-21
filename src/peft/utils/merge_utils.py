@@ -295,7 +295,7 @@ def sce_weight(task_tensors: torch.Tensor) -> torch.Tensor:
     # Normalize to form a probability distribution over tasks
     return weights / weight_sum
 
-def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
+def sce_mask_orig(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
     # Implementation of S step (sce_mask)
     
     # If density is zero, mask out everything 
@@ -325,6 +325,23 @@ def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[to
     mask.view(-1)[indices] = 1
     return mask
 
+#分位数混合选择（自适应权重）,自动平衡方差和绝对值，分别计算方差和绝对值的分位数，然后组合
+def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
+    if density <= 0:
+        return torch.zeros_like(task_tensors, dtype=mask_dtype)
+    if density >= 1:
+        return torch.ones_like(task_tensors, dtype=mask_dtype)
+
+    var = torch.var(task_tensors, dim=0, unbiased=False)
+    abs_mean = torch.mean(task_tensors.abs(), dim=0)
+
+    # 计算方差和绝对值的分位数（前 density 比例）
+    var_threshold = torch.quantile(var, 1 - density)
+    abs_threshold = torch.quantile(abs_mean, 1 - density)
+
+    # 满足任一条件的参数均被选中
+    mask = ((var >= var_threshold) | (abs_mean >= abs_threshold)).to(mask_dtype)
+    return mask
 
 
 
