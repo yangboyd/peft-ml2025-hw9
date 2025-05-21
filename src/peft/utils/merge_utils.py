@@ -326,7 +326,7 @@ def sce_mask_orig(task_tensors: torch.Tensor, density: float, mask_dtype: Option
     return mask
 
 #分位数混合选择（自适应权重）,自动平衡方差和绝对值，分别计算方差和绝对值的分位数，然后组合
-def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
+def sce_mask_threshold(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
     if density <= 0:
         return torch.zeros_like(task_tensors, dtype=mask_dtype)
     if density >= 1:
@@ -343,6 +343,37 @@ def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[to
     mask = ((var >= var_threshold) | (abs_mean >= abs_threshold)).to(mask_dtype)
     return mask
 
+#自动平衡方差和绝对值, 获取方差和绝对值最大的前density参数
+def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
+    if density <= 0:
+        return torch.zeros_like(task_tensors, dtype=mask_dtype)
+    if density >= 1:
+        return torch.ones_like(task_tensors, dtype=mask_dtype)
+
+    # 计算方差和绝对均值
+    var = torch.var(task_tensors, dim=0, unbiased=False)
+    abs_mean = torch.mean(task_tensors, dim=0).abs()
+    
+    # 使用小的阈值判断非零元素
+    threshold = 1e-8
+    nonzero_var = torch.sum(var > threshold)
+    nonzero_mean = torch.sum(abs_mean > threshold)
+    
+    num_params_var = int(nonzero_var * density)
+    num_params_mean = int(nonzero_mean * density)
+    
+    # 获取topk索引
+    _, var_top_indices = torch.topk(var.flatten(), num_params_var)
+    _, abs_top_indices = torch.topk(abs_mean.flatten(), num_params_mean)
+    
+    # 合并索引
+    combined_indices = torch.cat([var_top_indices, abs_top_indices]).unique()
+    
+    # 创建mask
+    mask = torch.zeros_like(task_tensors, dtype=mask_dtype)
+    mask.flatten()[combined_indices] = 1
+    
+    return mask
 
 
 def dare_linear(task_tensors: List[torch.Tensor], weights: torch.Tensor, density: float) -> torch.Tensor:
