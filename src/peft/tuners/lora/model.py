@@ -839,7 +839,7 @@ class LoraModel(BaseTuner):
             elif combination_type == "magnitude_prune":
                 lora_deltas[i] = magnitude_prune(task_tensors, valid_weights, density)
             elif combination_type == "sce":
-                lora_deltas[i] = sce(task_tensors, density, majority_sign_method)
+                lora_deltas[i] = sce(task_tensors, valid_weights, density, majority_sign_method)
             else:
                 raise ValueError("Invalid combination type")
         lora_deltas = [delta.to(dtype) for delta in lora_deltas]

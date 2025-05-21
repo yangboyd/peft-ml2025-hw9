@@ -220,6 +220,7 @@ def ties(
 
 def sce(
     task_tensors: List[torch.Tensor],
+    valid_weights: Optional[torch.Tensor] = None,  # 改为可选参数
     density: float = 1.0,
     majority_sign_method: Literal["total", "frequency"] = "total",
 ) -> torch.Tensor:
@@ -250,14 +251,18 @@ def sce(
     # Compute majority sign agreement mask
     majority_sign_mask = calculate_majority_sign_mask(stacked_tensors, method=majority_sign_method)
     
-    # Compute task-specific weights
-    weights = sce_weight(stacked_tensors)
+    # Compute task-specific weights (combining SCE weights with input valid_weights)
+    sce_weights = sce_weight(stacked_tensors)
     
-    # Reshape weights for broadcasting
-    weights = reshape_weight_task_tensors(stacked_tensors, weights)
+    # Combine SCE weights with input valid_weights
+    combined_weights = sce_weights * valid_weights.view(-1, *([1]*(stacked_tensors.dim()-1)))
+    
+    # Reshape weights for broadcasting if needed
+    if combined_weights.dim() < stacked_tensors.dim():
+        combined_weights = reshape_weight_task_tensors(stacked_tensors, combined_weights)
     
     # Apply majority sign mask to weights (zero out weights that disagree with majority)
-    masked_weights = weights * majority_sign_mask
+    masked_weights = combined_weights * majority_sign_mask
     
     # Weighted summation of masked task tensors
     merged_tensor = torch.sum(stacked_tensors * masked_weights, dim=0)
