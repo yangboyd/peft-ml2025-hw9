@@ -243,6 +243,14 @@ def sce(
     # Stack all task tensors into a single tensor of shape [num_tasks, ...]
     stacked_tensors = torch.stack(task_tensors, dim=0)
     
+    # Reshape weights for broadcasting
+    adapter_weights = valid_weights
+    if adapter_weights.dim() < stacked_tensors.dim():
+        adapter_weights = reshape_weight_task_tensors(stacked_tensors, adapter_weights)
+
+    # Apply valid_weights directly to the input tensors
+    stacked_tensors = stacked_tensors * adapter_weights
+
     # Apply variance-based selection mask if density < 1.0
     if density < 1.0:
         mask = sce_mask(stacked_tensors, density)
@@ -251,18 +259,15 @@ def sce(
     # Compute majority sign agreement mask
     majority_sign_mask = calculate_majority_sign_mask(stacked_tensors, method=majority_sign_method)
     
-    # Compute task-specific weights (combining SCE weights with input valid_weights)
-    sce_weights = sce_weight(stacked_tensors)
+    # Compute task-specific weights
+    weights = sce_weight(stacked_tensors)
     
-    # Combine SCE weights with input valid_weights
-    combined_weights = sce_weights * valid_weights.view(-1, *([1]*(stacked_tensors.dim()-1)))
-    
-    # Reshape weights for broadcasting if needed
-    if combined_weights.dim() < stacked_tensors.dim():
-        combined_weights = reshape_weight_task_tensors(stacked_tensors, combined_weights)
+    # Reshape weights for broadcasting
+    if weights.dim() < stacked_tensors.dim():
+        weights = reshape_weight_task_tensors(stacked_tensors, weights)
     
     # Apply majority sign mask to weights (zero out weights that disagree with majority)
-    masked_weights = combined_weights * majority_sign_mask
+    masked_weights = weights * majority_sign_mask
     
     # Weighted summation of masked task tensors
     merged_tensor = torch.sum(stacked_tensors * masked_weights, dim=0)
