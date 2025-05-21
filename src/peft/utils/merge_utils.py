@@ -295,7 +295,7 @@ def sce_weight(task_tensors: torch.Tensor) -> torch.Tensor:
     # Normalize to form a probability distribution over tasks
     return weights / weight_sum
 
-def sce_mask_orig(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
+def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
     # Implementation of S step (sce_mask)
     
     # If density is zero, mask out everything 
@@ -344,7 +344,7 @@ def sce_mask_threshold(task_tensors: torch.Tensor, density: float, mask_dtype: O
     return mask
 
 #自动平衡方差和绝对值, 获取方差和绝对值最大的前density参数
-def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
+def sce_mask_mean(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[torch.dtype] = None):
     if density <= 0:
         return torch.zeros_like(task_tensors, dtype=mask_dtype)
     if density >= 1:
@@ -370,7 +370,7 @@ def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[to
     
     # 创建mask
     mask = torch.zeros_like(task_tensors, dtype=mask_dtype)
-    mask.view(-1)[var_top_indices] = 1
+    mask.view(-1)[combined_indices] = 1
     
     return mask
 
