@@ -370,7 +370,7 @@ def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[to
     
     # 创建mask
     mask = torch.zeros_like(task_tensors, dtype=mask_dtype)
-    mask.view(-1)[combined_indices] = 1
+    mask.view(-1)[var_top_indices] = 1
     
     return mask
 
