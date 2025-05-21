@@ -355,23 +355,22 @@ def sce_mask(task_tensors: torch.Tensor, density: float, mask_dtype: Optional[to
     abs_mean = torch.mean(task_tensors, dim=0).abs()
     
     # 使用小的阈值判断非零元素
-    threshold = 1e-8
-    nonzero_var = torch.sum(var > threshold)
-    nonzero_mean = torch.sum(abs_mean > threshold)
+    nonzero_var = torch.count_nonzero(var)
+    nonzero_mean = torch.count_nonzero(abs_mean)
     
     num_params_var = int(nonzero_var * density)
     num_params_mean = int(nonzero_mean * density)
     
     # 获取topk索引
-    _, var_top_indices = torch.topk(var.flatten(), num_params_var)
-    _, abs_top_indices = torch.topk(abs_mean.flatten(), num_params_mean)
+    _, var_top_indices = torch.topk(var.abs().view(-1), k=num_params_var, largest=True)
+    _, abs_top_indices = torch.topk(abs_mean.abs().view(-1), k=num_params_mean, largest=True)
     
     # 合并索引
     combined_indices = torch.cat([var_top_indices, abs_top_indices]).unique()
     
     # 创建mask
     mask = torch.zeros_like(task_tensors, dtype=mask_dtype)
-    mask.flatten()[combined_indices] = 1
+    mask.view(-1)[combined_indices] = 1
     
     return mask
 
